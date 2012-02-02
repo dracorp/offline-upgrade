@@ -7,7 +7,7 @@
 # 
 #   DESCRIPTION:  
 # 
-#       OPTIONS:  [-i input_file] [-l] [-d export_dir] [-h]
+#       OPTIONS:  [-i input_file] [-e export_dir] [-lhsv]
 #  REQUIREMENTS:  makepkg, pacman
 #          BUGS:  ---
 #         NOTES:  ---
@@ -22,31 +22,34 @@ NAME=offline-upgrade
 VERSION=0.2
 AUTHOR='Piotr Rogoża'
 
-OPTIONS="e:b:i:lhv"
+OPTIONS="e:b:i:hlsv"
 set -- `getopt -o $OPTIONS -n $NAME -- $*`
 AURURL='http://aur.archlinux.org'
 
 requirements(){ #{{{
     if ! which pacman &>/dev/null; then
-        echo "Required program 'pacman' not found"
+        echo "Required program 'pacman' not found" >&2
         exit 1
     fi
     if ! which makepkg &>/dev/null; then
-        echo "Required makepkg 'pacman' not found"
+        echo "Required makepkg 'pacman' not found" >&2
         exit 1
     fi
     if ! which curl &>/dev/null; then
-        echo "Required curl 'pacman' not found"
+        echo "Required curl 'pacman' not found" >&2
         exit 1
     fi
 } #}}}
 
 get_local_package(){ #{{{
     pacman -Qm
+    if [ $? -ne 0 ]; then
+        echo "Retrieve a list of local packages failed" >&2
+    fi
 } #}}}
 
 usage(){ #{{{
-    echo "Usage: `basename $0` [-i input_file] [-e export_dir] [-b build_directory] [-hlv]"
+    echo "Usage: `basename $0` [-i input_file] [-e export_dir] [-b build_directory] [-lhsv]"
 } #}}}
 
 help(){ #{{{
@@ -55,6 +58,7 @@ help(){ #{{{
     -i input file with package to build or use STDIN
     -e export directory, default ./export_dir
     -b build directory, default ./build_dir
+    -s install missing dependencies with pacman
     -l get info about local packages
     -v show version
     -h show this help
@@ -86,7 +90,7 @@ build_package(){ #{{{
         pushd $package &>/dev/null || return
         local pkgurl="$AURURL/packages/$package/$package.tar.gz"
         if ! curl -fs $pkgurl -o $package.tar.gz; then
-            echo -e "The package $package not found in AUR.\n"
+            echo -e "The package $package not found in AUR.\n" >&2
             return
         fi
         bsdtar --strip-components 1 -xf $package.tar.gz
@@ -97,26 +101,32 @@ build_package(){ #{{{
         aur_version="$pkgver-$pkgrel"
         
         if [ -f $EXPORT_DIR/$package-$aur_version-*.$ext ]; then
-            echo -e "The new package $package-$aur_version from AUR is already built.\n"
+            echo -e "The latest package $package-$aur_version from AUR is already built.\n"
             return
         elif [ -f $package-$aur_version-*.$ext ]; then
-            echo -e "The new package $package-$aur_version from AUR is already built.\nMoving it to $EXPORT_DIR"
+            echo -e "The latest package $package-$aur_version from AUR is already built.\nMoving it to $EXPORT_DIR"
             mv -fv $package/$package-$aur_version-*.$ext $EXPORT_DIR/
             return
         fi
 
         # build new package if versions are different
         if [ "$aur_version" != "$version" ]; then
-            makepkg -fs 
-            if [ $? -eq 0 ]; then
+            MAKEPKG_OPT="fs"
+            if [ $INSTALL_DEP -eq 1 ]; then
+                MAKEPKG_OPT+=" --noconfirm"
+            fi
+            makepkg $MAKEPKG_OPT
+            ERROR_PKG=$?
 
-                # for some packages installed from git
-                source PKGBUILD
-                aur_version="$pkgver-$pkgrel"
+            # for some packages installed from git
+            source PKGBUILD
+            aur_version="$pkgver-$pkgrel"
+            if [ $ERROR_PKG -eq 0 ]; then
+
                 mv -vf $package-$aur_version-*.pkg.tar.xz $EXPORT_DIR || \
-                    echo -e "Moving $package failed.\n"
+                    echo -e "Moving $package-$aur_version failed.\n" >&2
             else
-                echo -e "Building $package failed\n"
+                echo -e "Building $package-$aur_version failed\n" >&2
             fi
         else
             echo -e "Local version of the package: $package-$version is the same as in AUR: $aur_version\n"
@@ -141,6 +151,9 @@ while getopts "$OPTIONS" OPT; do
             ;;
         l)
             GET_LOCAL_PACKAGE=1
+            ;;
+        s)
+            INSTALL_DEP=1
             ;;
         h)
             help
@@ -174,8 +187,11 @@ else
 fi
 # doesn't exist
 if [ ! -d $EXPORT_DIR ]; then
-    mkdir $EXPORT_DIR || \
+    mkdir $EXPORT_DIR
+    if [ $? -ne 0 ]; then
+        echo "Failed make directory $BUILD_DIR" >&2
         exit 1
+    fi
 fi
 #}}}
 
@@ -190,8 +206,11 @@ else
 fi
 # doesn't exist
 if [ ! -d $BUILD_DIR ]; then
-    mkdir $BUILD_DIR || \
+    mkdir $BUILD_DIR
+    if [ $? -ne 0 ]; then
+        echo "Failed make directory $BUILD_DIR" >&2
         exit 1
+    fi
 fi
 #}}}
 
