@@ -5,9 +5,8 @@
 # 
 #         USAGE:  ./offline.upgrade.sh
 # 
-#   DESCRIPTION:  
+#   DESCRIPTION:  Offline upgrade Archlinux's packages
 # 
-#       OPTIONS:  [-i input_file] [-e export_dir] [-lhsv]
 #  REQUIREMENTS:  makepkg, pacman
 #          BUGS:  ---
 #         NOTES:  ---
@@ -111,7 +110,7 @@ build_package(){ #{{{
 
         # build new package if versions are different
         if [ "$aur_version" != "$version" ]; then
-            MAKEPKG_OPT="fs"
+            MAKEPKG_OPT="-fs"
             if [ $INSTALL_DEP -eq 1 ]; then
                 MAKEPKG_OPT+=" --noconfirm"
             fi
@@ -228,7 +227,7 @@ else
     exit
 fi
 
-exit
+exit 
 
 =pod
 
