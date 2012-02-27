@@ -39,11 +39,13 @@ use LWP::Simple;
 # about the program
 my $AUTHOR  = 'Piotr Rogoża';
 my $NAME    = 'offline-upgrade';
+my $BASENAME = basename $PROGRAM_NAME;
 use version; our $VERSION = qv(0.3);
 
 # declare of subroutines
 sub help;
 sub version;
+sub get_manual;
 
 # global variables
 my (%option, %env);                             # option for the program, local environment like as %ENV
@@ -59,6 +61,7 @@ GetOptions(
     'L|log'         => \$option{log_build},     # Enable makepkg build logging to pkgname-pkgver-pkgrel-arch.log
     'v|version'     => sub{version; exit;},
     'h|help'        => sub{help; exit;},
+    'man'           => sub{get_manual; exit;},
 );
 
 # readonly variables
@@ -78,6 +81,18 @@ my $FILE_PACMAN  = '/etc/pacman.conf';
 # for push, popd and dirs
 my @DIRS;
 
+sub get_manual { #{{{
+    my $perldoc = `which perldoc`;
+    chomp $perldoc;
+    if ( $perldoc ){
+        exec "$perldoc $PROGRAM_NAME";
+    }
+    else {
+        say qq{The 'perldoc' program was not found on this computer.\nYou need to install it if you want see the manual\n};
+        exit;
+    }
+    return ;
+} ## --- end of sub get_manual }}}
 sub dirs { #{{{
 #===  FUNCTION  ================================================================
 #         NAME: dirs
@@ -300,21 +315,26 @@ sub get_local_package { #{{{
 } ## --- end of sub get_local_package }}}
 
 sub usage { #{{{
-    say qq{Usage: $PROGRAM_NAME [-i input_file] [-o output_file] [-e export_dir] [-b build_directory] [-gscL]};
+    say qq{Usage: $BASENAME [-i input_file] [-o output_file] [-e export_dir] [-b build_directory] [-s|--instal-dep] [-v|--version] [-L|--log] [-g|--get-local] [-c|--clean] [-h|--help] [--man]};
     return ;
 } ## --- end of sub usage }}}
 
 sub help { #{{{
     usage;
     print <<'HELP';
-    -i input file with package to build or use STDIN
-    -o output file for local packages or use STDOUT
-    -e export directory, default ./export_dir
-    -b build directory, default ./build_dir
-    -s install missing dependencies with pacman
-    -l get info about local packages
-    -v show version
-    -h show this help
+
+    -i - input file with package to build or use STDIN
+    -o - output file for local packages or use STDOUT
+    -g - get local packages from the system
+    -e - export directory, default ./export_dir
+    -b - build directory, default ./build_dir
+    -s|--install-dep - install missing dependencies with pacman
+    -c|--clean - clean the build_dir/$package directory after build (in the makepkg process)
+    -L|--log - enable makepkg build logging to pkgname-pkgver-pkgrel-arch.log
+
+    -v|--version - show version
+    -h|--help - show this help
+    --man - show man page
 HELP
     return;
 } ## --- end of sub help }}}
@@ -609,6 +629,10 @@ Show version
 B<-h|--help>
 
 Show help
+
+B<--man>
+
+Show man page
 
 =head1 AUTHOR
 
